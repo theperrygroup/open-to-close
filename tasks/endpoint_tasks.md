@@ -271,13 +271,55 @@ API integration tests successful
 
 ---
 
+## 🚀 Dynamic Field Mapping Feature (NEW)
+
+### Overview
+The Open to Close API requires field IDs instead of field names for property creation. The library now includes dynamic field mapping that automatically discovers and caches field definitions from the API.
+
+### Key Features Implemented
+✅ **Automatic Field Discovery** - Fetches field definitions from `/propertyFields` endpoint
+✅ **Field ID Translation** - Converts human-readable field names to required IDs
+✅ **Option Value Mapping** - Translates choice field values (e.g., "buyer" → 797212)
+✅ **Field Caching** - Caches mappings for performance
+✅ **Simple Interface** - Use `title` instead of `contract_title`, `status` instead of `contract_status`
+✅ **Validation Support** - Validates fields before submission with helpful errors
+✅ **Backward Compatible** - Original API format still works
+
+### Usage Examples
+```python
+# Simple format (NEW)
+property = client.properties.create_property({
+    "title": "Beautiful Home",
+    "client_type": "buyer",
+    "status": "under contract"
+})
+
+# Field discovery
+fields = client.list_available_fields()
+for field in fields:
+    if field['required']:
+        print(f"{field['name']}: {field['options']}")
+
+# Validation
+is_valid, errors = client.validate_property_data(data)
+```
+
+### Implementation Details
+- Field mappings stored in `BaseClient._field_mappings_cache`
+- Automatic refresh with `client.properties.refresh_field_mappings()`
+- Helper methods in main client: `list_available_fields()`, `validate_property_data()`
+- Smart option matching handles various formats (spaces, hyphens, case-insensitive)
+
+---
+
 ## 📚 Resources
 
 - **API Documentation**: `/docs/api/`
 - **Style Guide**: `STYLE_GUIDE.md`
 - **Test Suite**: `tests/`
 - **Live Test Results**: API calls confirmed working with real data
+- **Example Code**: `examples/updated_api_examples.py`
 
 ---
 
-*Last Updated: Generated during project review - All core functionality complete and tested* 
+*Last Updated: Generated during project review - All core functionality complete and tested, dynamic field mapping added* 

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .agents import AgentsAPI
 from .base_client import DEFAULT_BASE_URL
@@ -241,3 +241,147 @@ class OpenToCloseAPI:
             ```
         """
         return self.properties.get_property_fields()
+
+    def list_available_fields(self) -> List[Dict[str, Any]]:
+        """List all available property fields with their IDs and metadata.
+
+        Returns:
+            List of field information dictionaries containing:
+            - name: Field key/name
+            - id: Field ID
+            - type: Field type (text, choice, date, etc.)
+            - title: Human-readable field title
+            - required: Whether field is required
+            - options: For choice fields, available options
+
+        Example:
+            ```python
+            client = OpenToCloseAPI()
+            fields = client.list_available_fields()
+
+            for field in fields[:5]:  # Show first 5 fields
+                print(f"{field['name']} ({field['type']}): {field['title']}")
+                if field.get('required'):
+                    print("  *REQUIRED*")
+                if field.get('options'):
+                    print(f"  Options: {', '.join(field['options'])}")
+            ```
+        """
+        mappings = self.properties.get_field_mappings()
+        required_fields = ["contract_title", "contract_client_type", "contract_status"]
+
+        fields = []
+        for field_key, mapping in mappings.items():
+            field_info = {
+                "name": field_key,
+                "id": mapping["id"],
+                "type": mapping["type"],
+                "title": mapping.get("title", field_key),
+                "required": field_key in required_fields,
+            }
+
+            # For choice fields, extract option names
+            if "options" in mapping:
+                # Get unique option names (excluding variations with hyphens)
+                option_names = [
+                    k
+                    for k in mapping["options"].keys()
+                    if "-" not in k or k.startswith("listing")
+                ]
+                field_info["options"] = sorted(set(option_names))
+
+            fields.append(field_info)
+
+        # Sort by required first, then by name
+        return sorted(fields, key=lambda x: (not x["required"], x["name"]))
+
+    def validate_property_data(
+        self, property_data: Dict[str, Any]
+    ) -> Tuple[bool, List[str]]:
+        """Validate property data before submission.
+
+        Args:
+            property_data: Property data dictionary to validate
+
+        Returns:
+            Tuple of (is_valid, errors) where errors is a list of error messages
+
+        Example:
+            ```python
+            client = OpenToCloseAPI()
+
+            property_data = {
+                "title": "Test Property",
+                "client_type": "InvalidType",  # This will cause an error
+                "status": "Active"
+            }
+
+            is_valid, errors = client.validate_property_data(property_data)
+            if not is_valid:
+                for error in errors:
+                    print(f"Error: {error}")
+            else:
+                property = client.properties.create_property(property_data)
+            ```
+        """
+        errors = []
+        mappings = self.properties.get_field_mappings()
+
+        # Required fields
+        required_fields = {
+            "contract_title": ["title", "contract_title"],
+            "contract_client_type": ["client_type", "contract_client_type"],
+            "contract_status": ["status", "contract_status"],
+        }
+
+        # Check required fields
+        for field_key, aliases in required_fields.items():
+            found = False
+            for alias in aliases:
+                if alias in property_data and property_data[alias]:
+                    found = True
+                    break
+            if not found:
+                errors.append(
+                    f"Missing required field: {field_key} (use any of: {', '.join(aliases)})"
+                )
+
+        # Validate field values
+        for key, value in property_data.items():
+            # Check if field exists in mappings
+            if key not in mappings:
+                # Check if it's an alias for a required field
+                is_alias = False
+                for field_key, aliases in required_fields.items():
+                    if key in aliases:
+                        is_alias = True
+                        # Use the actual field key for validation
+                        key = field_key
+                        break
+
+                if not is_alias:
+                    errors.append(f"Unknown field: {key}")
+                    continue
+
+            field_mapping = mappings.get(key)
+            if not field_mapping:
+                continue
+
+            # Validate choice fields
+            if field_mapping["type"] == "choice" and "options" in field_mapping:
+                if isinstance(value, str):
+                    # Check if value is valid
+                    valid_options = list(field_mapping["options"].keys())
+                    if value.lower() not in field_mapping["options"]:
+                        # Show only primary option names
+                        display_options = [
+                            opt
+                            for opt in valid_options
+                            if "-" not in opt or opt.startswith("listing")
+                        ]
+                        errors.append(
+                            f"Invalid value '{value}' for field '{key}'. "
+                            f"Valid options: {', '.join(sorted(set(display_options)))}"
+                        )
+
+        return (len(errors) == 0, errors)

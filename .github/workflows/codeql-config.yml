@@ -1,0 +1,19 @@
+name: "CodeQL Config"
+
+disable-default-queries: false
+
+queries:
+  - uses: security-and-quality
+
+paths-ignore:
+  - "tests/**"
+  - "docs/**" 
+  - "htmlcov/**"
+  - ".venv/**"
+  - "venv/**"
+  - "*.md"
+  - "*.txt"
+  - "*.json"
+
+paths:
+  - "open_to_close/**" 

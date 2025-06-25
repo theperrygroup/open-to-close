@@ -205,28 +205,8 @@ class PropertiesAPI(BaseClient):
         Returns:
             Dictionary containing field mappings and option values
         """
-        return {
-            "contract_title": {"id": 926565, "key": "contract_title"},
-            "client_type": {
-                "id": 926553,
-                "key": "contract_client_type",
-                "options": {"buyer": 797212, "seller": 797213, "dual": 797214},
-            },
-            "status": {
-                "id": 926552,
-                "key": "contract_status",
-                "options": {
-                    "pre-mls": 797205,
-                    "active": 797206,
-                    "under contract": 797207,
-                    "withdrawn": 797208,
-                    "contract": 797209,
-                    "closed": 797210,
-                    "terminated": 797211,
-                },
-            },
-            "purchase_amount": {"id": 926554, "key": "purchase_amount"},
-        }
+        # Use dynamic field mappings from base client
+        return self.get_field_mappings()
 
     def _get_team_member_id(self) -> int:
         """Auto-detect a valid team member ID.
@@ -313,7 +293,7 @@ class PropertiesAPI(BaseClient):
             return self._build_api_format(
                 title=property_data.strip(),
                 client_type="Buyer",  # Default for string input
-                status="Active",  # Default for string input
+                status="Listing- Active",  # Default for string input
                 team_member_id=team_member_id,
             )
 
@@ -345,18 +325,153 @@ class PropertiesAPI(BaseClient):
         Returns:
             API-formatted dictionary
         """
-        # Extract title
-        title = simple_data.get("title") or simple_data.get("contract_title")
-        if not title:
-            raise ValidationError("Property title is required (use 'title' field)")
+        # Get field mappings from API
+        field_mappings = self.get_field_mappings()
 
-        return self._build_api_format(
-            title=title,
-            client_type=simple_data.get("client_type", "Buyer"),  # Default to Buyer
-            status=simple_data.get("status", "Active"),  # Default to Active
-            purchase_amount=simple_data.get("purchase_amount"),
-            team_member_id=team_member_id,
-        )
+        # Get team member ID
+        if team_member_id is None:
+            team_member_id = self._get_team_member_id()
+
+        # Build fields array
+        fields = []
+
+        # Define field aliases
+        field_aliases = {
+            "title": "contract_title",
+            "client_type": "contract_client_type",
+            "status": "contract_status",
+        }
+
+        # Required fields with defaults
+        required_defaults = {
+            "contract_title": simple_data.get("title")
+            or simple_data.get("contract_title"),
+            "contract_client_type": simple_data.get("client_type")
+            or simple_data.get("contract_client_type", "buyer"),
+            "contract_status": simple_data.get("status")
+            or simple_data.get("contract_status", "listing- active"),
+        }
+
+        # Check for required title
+        if not required_defaults["contract_title"]:
+            raise ValidationError(
+                "Property title is required (use 'title' or 'contract_title' field)"
+            )
+
+        # Process all fields including required defaults
+        all_data = {**simple_data, **required_defaults}
+
+        # Track processed fields to avoid duplicates
+        processed_fields = set()
+
+        for field_key, value in all_data.items():
+            if value is None:
+                continue
+
+            # Check if this is an alias
+            actual_field_key = field_aliases.get(field_key, field_key)
+
+            # Skip if already processed
+            if actual_field_key in processed_fields:
+                continue
+
+            # Get field mapping
+            field_mapping = field_mappings.get(actual_field_key)
+            if not field_mapping:
+                # Skip unknown fields with a warning
+                if field_key not in [
+                    "title",
+                    "client_type",
+                    "status",
+                ]:  # Don't warn for known aliases
+                    logger.warning(f"Unknown field '{field_key}' - skipping")
+                continue
+
+            processed_fields.add(actual_field_key)
+            field_id = field_mapping.get("id")
+            field_type = field_mapping.get("type")
+
+            # Prepare field value
+            field_value: Any = value
+
+            # Handle choice fields - convert human-readable values to option IDs
+            if field_type == "choice" and "options" in field_mapping:
+                if isinstance(value, str):
+                    # Look up option ID (case-insensitive)
+                    options = field_mapping["options"]
+
+                    # Try exact match first
+                    option_id = options.get(value.lower())
+
+                    if not option_id:
+                        # Try with various formats
+                        value_normalized = value.lower().replace(" ", "-")
+                        option_id = options.get(value_normalized)
+
+                    if not option_id:
+                        # Try removing "listing-" prefix
+                        if value_normalized.startswith("listing-"):
+                            clean_value = value_normalized[8:]
+                            option_id = options.get(clean_value)
+
+                    if not option_id:
+                        # Try partial matches for common variations
+                        for opt_key, opt_id in options.items():
+                            if opt_key.replace("-", " ") == value.lower().replace(
+                                "-", " "
+                            ):
+                                option_id = opt_id
+                                break
+
+                    if option_id:
+                        field_value = option_id
+                    else:
+                        # Show valid options without duplicates
+                        display_options = []
+                        seen_normalized = set()
+                        for opt in options.keys():
+                            normalized = opt.replace("-", " ").replace("listing ", "")
+                            if normalized not in seen_normalized:
+                                seen_normalized.add(normalized)
+                                # Use the cleanest version
+                                if not opt.startswith("listing") and "-" not in opt:
+                                    display_options.append(opt)
+
+                        logger.warning(
+                            f"Unknown option '{value}' for field '{actual_field_key}'. "
+                            f"Valid options: {', '.join(sorted(display_options))}"
+                        )
+                        continue
+
+            # Add field to array
+            # Note: For choice fields with numeric IDs, keep as int; otherwise convert to string
+            if field_type == "choice" and isinstance(field_value, int):
+                # Keep numeric option IDs as integers
+                fields.append({"id": field_id, "value": field_value})
+            else:
+                # Convert other values to strings
+                fields.append({"id": field_id, "value": str(field_value)})
+
+        # Ensure required fields are present
+        field_ids_present = {f["id"] for f in fields}
+        required_field_keys = [
+            "contract_title",
+            "contract_client_type",
+            "contract_status",
+        ]
+
+        for req_key in required_field_keys:
+            req_mapping = field_mappings.get(req_key)
+            if req_mapping and req_mapping["id"] not in field_ids_present:
+                raise ValidationError(
+                    f"Required field '{req_key}' is missing or has invalid value"
+                )
+
+        return {
+            "team_member_id": team_member_id,
+            "time_zone_id": 1,  # Default time zone
+            "fields": fields,
+        }
 
     def _build_api_format(
         self,
@@ -378,81 +493,17 @@ class PropertiesAPI(BaseClient):
         Returns:
             API-formatted dictionary
         """
-        mappings = self._get_field_mappings()
-
-        # Get team member ID
-        if team_member_id is None:
-            team_member_id = self._get_team_member_id()
-
-        # Build fields array
-        fields = [
-            {
-                "id": mappings["contract_title"]["id"],
-                "key": mappings["contract_title"]["key"],
-                "value": title,
-            }
-        ]
-
-        # Add client type if provided
-        if client_type:
-            client_type_lower = client_type.lower()
-            client_options = mappings["client_type"]["options"]
-
-            if client_type_lower in client_options:
-                fields.append(
-                    {
-                        "id": mappings["client_type"]["id"],
-                        "key": mappings["client_type"]["key"],
-                        "value": client_options[client_type_lower],
-                    }
-                )
-            else:
-                raise ValidationError(
-                    f"Invalid client_type: {client_type}. "
-                    f"Must be one of: {', '.join(client_options.keys())}"
-                )
-
-        # Add status if provided
-        if status:
-            status_lower = status.lower()
-            status_options = mappings["status"]["options"]
-
-            if status_lower in status_options:
-                fields.append(
-                    {
-                        "id": mappings["status"]["id"],
-                        "key": mappings["status"]["key"],
-                        "value": status_options[status_lower],
-                    }
-                )
-            else:
-                raise ValidationError(
-                    f"Invalid status: {status}. "
-                    f"Must be one of: {', '.join(status_options.keys())}"
-                )
-
-        # Add purchase amount if provided
-        if purchase_amount is not None:
-            try:
-                amount = float(purchase_amount)
-                if amount < 0:
-                    raise ValidationError("Purchase amount must be non-negative")
-
-                fields.append(
-                    {
-                        "id": mappings["purchase_amount"]["id"],
-                        "key": mappings["purchase_amount"]["key"],
-                        "value": amount,
-                    }
-                )
-            except (ValueError, TypeError):
-                raise ValidationError(f"Invalid purchase_amount: {purchase_amount}")
-
-        return {
-            "team_member_id": team_member_id,
-            "time_zone_id": 1,  # Default time zone
-            "fields": fields,
+        # Use the new conversion method with a simple dict
+        simple_data = {
+            "contract_title": title,
+            "contract_client_type": client_type or "Buyer",
+            "contract_status": status or "Listing- Active",
         }
+
+        if purchase_amount is not None:
+            simple_data["purchase_amount"] = purchase_amount
+
+        return self._convert_simple_to_api_format(simple_data, team_member_id)
 
     def list_properties(
         self, params: Optional[Dict[str, Any]] = None

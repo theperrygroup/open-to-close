@@ -65,6 +65,10 @@ class BaseClient:
         )
         self._setup_session()
 
+        # Initialize field mappings cache
+        self._field_mappings_cache: Optional[Dict[str, Dict[str, Any]]] = None
+        self._field_mappings_raw: Optional[List[Dict[str, Any]]] = None
+
         logger.info(
             "Initialized Open To Close API client",
             extra={
@@ -758,3 +762,107 @@ class BaseClient:
         return self._request(
             "PATCH", endpoint, json_data=json_data, data=data, files=files
         )
+
+    def get_field_mappings(
+        self, force_refresh: bool = False
+    ) -> Dict[str, Dict[str, Any]]:
+        """Fetch and cache field ID mappings from the API.
+
+        This method retrieves property field definitions from the API and creates
+        a mapping dictionary for easy field name to ID lookups.
+
+        Args:
+            force_refresh: Force refresh of cached mappings
+
+        Returns:
+            Dictionary mapping field names to their metadata including:
+            - id: Field ID
+            - type: Field type (text, choice, date, etc.)
+            - options: For choice fields, maps option names to IDs
+
+        Raises:
+            AuthenticationError: If authentication fails
+            ServerError: If server error occurs
+            NetworkError: If network error occurs
+        """
+        if self._field_mappings_cache is not None and not force_refresh:
+            return self._field_mappings_cache
+
+        logger.info("Fetching field mappings from API")
+
+        try:
+            # Get raw field data
+            response = self.get("/propertyFields")
+            self._field_mappings_raw = self._process_list_response(
+                response, "/propertyFields"
+            )
+
+            # Build field mappings
+            field_mappings = {}
+
+            for group in self._field_mappings_raw:
+                if "group" not in group:
+                    continue
+
+                for section in group["group"].get("sections", []):
+                    if "section" not in section:
+                        continue
+
+                    for field in section["section"].get("fields", []):
+                        field_key = field.get("key", "")
+                        if not field_key:
+                            continue
+
+                        # Build field mapping entry
+                        mapping = {
+                            "id": field.get("id"),
+                            "type": field.get("type"),
+                            "title": field.get("title"),
+                            "key": field_key,
+                        }
+
+                        # For choice fields, map option names to IDs
+                        if field.get("type") == "choice" and "options" in field:
+                            mapping["options"] = {}
+                            for option in field.get("options", []):
+                                option_title = option.get("title", "").lower()
+                                # Handle various formats
+                                mapping["options"][option_title] = option.get("id")
+                                # Also map with hyphens instead of spaces
+                                mapping["options"][option_title.replace(" ", "-")] = (
+                                    option.get("id")
+                                )
+                                # Remove "listing-" prefix variations
+                                if option_title.startswith("listing-"):
+                                    clean_title = option_title[8:]  # Remove "listing-"
+                                    mapping["options"][clean_title] = option.get("id")
+
+                        field_mappings[field_key] = mapping
+
+            self._field_mappings_cache = field_mappings
+            logger.info(f"Successfully cached {len(field_mappings)} field mappings")
+
+            return field_mappings
+
+        except Exception as e:
+            logger.error(f"Failed to fetch field mappings: {str(e)}")
+            raise
+
+    def refresh_field_mappings(self) -> Dict[str, Dict[str, Any]]:
+        """Force refresh of field mappings cache.
+
+        Returns:
+            Updated field mappings dictionary
+        """
+        return self.get_field_mappings(force_refresh=True)
+
+    def get_raw_field_definitions(self) -> Optional[List[Dict[str, Any]]]:
+        """Get the raw field definitions as returned by the API.
+
+        Returns:
+            List of field groups with their sections and fields, or None if not cached
+        """
+        if self._field_mappings_raw is None:
+            # Fetch mappings if not cached
+            self.get_field_mappings()
+        return self._field_mappings_raw

@@ -232,7 +232,56 @@ class TestPropertiesAPI:
         self, mock_request: Mock, client: OpenToCloseAPI, mock_response: Mock
     ) -> None:
         """Test creating a property."""
-        # Mock both the teams request (for team member auto-detection) and property creation
+        # Mock field mappings request
+        field_mappings_response = Mock(spec=requests.Response)
+        field_mappings_response.status_code = 200
+        field_mappings_response.json.return_value = [
+            {
+                "group": {
+                    "title": "Property Details",
+                    "sections": [
+                        {
+                            "section": {
+                                "title": "Basic Info",
+                                "fields": [
+                                    {
+                                        "id": 926565,
+                                        "key": "contract_title",
+                                        "title": "Contract Title",
+                                        "type": "text",
+                                    },
+                                    {
+                                        "id": 926553,
+                                        "key": "contract_client_type",
+                                        "title": "Contract Client Type",
+                                        "type": "choice",
+                                        "options": [
+                                            {"id": 797212, "title": "buyer"},
+                                            {"id": 797213, "title": "seller"},
+                                            {"id": 797214, "title": "dual"},
+                                        ],
+                                    },
+                                    {
+                                        "id": 926552,
+                                        "key": "contract_status",
+                                        "title": "Contract Status",
+                                        "type": "choice",
+                                        "options": [
+                                            {"id": 797206, "title": "listing- active"},
+                                            {"id": 797207, "title": "under contract"},
+                                            {"id": 797210, "title": "closed"},
+                                        ],
+                                    },
+                                ],
+                            }
+                        }
+                    ],
+                }
+            }
+        ]
+        field_mappings_response.headers = {}
+
+        # Mock teams request (for team member auto-detection)
         teams_response = Mock(spec=requests.Response)
         teams_response.status_code = 200
         teams_response.json.return_value = [
@@ -240,6 +289,7 @@ class TestPropertiesAPI:
         ]
         teams_response.headers = {}
 
+        # Mock property creation request
         property_response = Mock(spec=requests.Response)
         property_response.status_code = 201
         property_response.json.return_value = {
@@ -250,7 +300,11 @@ class TestPropertiesAPI:
         property_response.headers = {}
 
         # Configure mock to return different responses for different URLs
-        mock_request.side_effect = [teams_response, property_response]
+        mock_request.side_effect = [
+            field_mappings_response,
+            teams_response,
+            property_response,
+        ]
 
         property_data = {
             "contract_title": "Test Property Contract",
@@ -263,8 +317,8 @@ class TestPropertiesAPI:
 
         assert isinstance(property, dict)
         assert property.get("id") == 1
-        # Expect 2 calls: 1 for teams (auto-detection) and 1 for property creation
-        assert mock_request.call_count == 2
+        # Expect 3 calls: 1 for field mappings, 1 for teams (auto-detection) and 1 for property creation
+        assert mock_request.call_count == 3
 
     @patch("open_to_close.base_client.requests.Session.request")
     def test_retrieve_property(
