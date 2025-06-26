@@ -5,6 +5,51 @@ The Properties API provides complete lifecycle management for real estate proper
 !!! abstract "PropertiesAPI Client"
     Access via `client.properties` - provides full CRUD operations for property management.
 
+!!! success "v2.5.0 NEW: Simplified Property Creation"
+    🎉 **Major Update**: Property creation is now incredibly simple! Use human-readable field names with automatic field ID translation.
+
+    ```python
+    # ✨ Simple title only
+    property = client.properties.create_property("Beautiful Family Home")
+    
+    # ✨ Simple dictionary format  
+    property = client.properties.create_property({
+        "title": "Downtown Condo",
+        "client_type": "Buyer",    # "Buyer", "Seller", "Dual"
+        "status": "Active"         # "Active", "Under Contract", etc.
+    })
+    ```
+
+    **Available Field Names:**
+    - `title` or `contract_title` - Property title (required)
+    - `client_type` or `contract_client_type` - "Buyer", "Seller", "Dual" 
+    - `status` or `contract_status` - "Active", "Under Contract", "Closed", etc.
+
+    **What's Automatic:**
+    - Field ID lookup and translation
+    - Team member auto-detection
+    - Smart defaults (Buyer + Active status)
+    - Input validation with clear error messages
+
+---
+
+## 🔍 Field Discovery (v2.5.0+)
+
+Discover available fields and validate data before creating properties:
+
+```python
+# List all available fields with metadata
+fields = client.list_available_fields()
+for field in fields[:5]:
+    print(f"Field: {field['key']} - {field['title']} ({field['type']})")
+
+# Validate property data before creation
+data = {"title": "Test Property", "client_type": "Buyer"}
+is_valid, errors = client.validate_property_data(data)
+if not is_valid:
+    print(f"Validation errors: {errors}")
+```
+
 ---
 
 ## 🚀 Quick Start
@@ -135,12 +180,13 @@ def list_properties(
 
 ### **create_property()**
 
-Create a new property with the provided data.
+Create a new property with simple human-readable fields or advanced API format.
 
 ```python
 def create_property(
     self, 
-    property_data: Dict[str, Any]
+    property_data: Union[str, Dict[str, Any]],
+    team_member_id: Optional[int] = None
 ) -> Dict[str, Any]
 ```
 
@@ -148,7 +194,8 @@ def create_property(
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `property_data` | `Dict[str, Any]` | Yes | Dictionary containing property information |
+| `property_data` | `Union[str, Dict[str, Any]]` | Yes | Property title (string) or property data (dictionary) |
+| `team_member_id` | `Optional[int]` | No | Override auto-detected team member ID |
 
 **Returns:**
 
@@ -156,7 +203,16 @@ def create_property(
 |------|-------------|
 | `Dict[str, Any]` | Created property data with assigned ID |
 
-**Common Property Fields:**
+**✨ NEW: Simplified Format (v2.5.0+)**
+
+| Field | Type | Required | Description | Example |
+|-------|------|----------|-------------|---------|
+| `title` | `string` | Yes | Property title | `"Beautiful Family Home"` |
+| `client_type` | `string` | No | Client relationship | `"Buyer"`, `"Seller"`, `"Dual"` |
+| `status` | `string` | No | Property status | `"Active"`, `"Under Contract"`, `"Closed"` |
+| `purchase_amount` | `number` | No | Purchase amount | `450000` |
+
+**🔧 Legacy Format (Still Supported)**
 
 | Field | Type | Required | Description | Example |
 |-------|------|----------|-------------|---------|
@@ -171,25 +227,35 @@ def create_property(
 | `listing_price` | `number` | No | Listing price | `450000` |
 | `status` | `string` | No | Property status | `"Active"` |
 
-=== ":material-plus: Basic Creation"
+=== ":sparkles: NEW: Simple Format"
 
     ```python
-    # Create a basic property
-    new_property = client.properties.create_property({
-        "address": "456 Oak Avenue",
-        "city": "Los Angeles",
-        "state": "CA",
-        "zip_code": "90210"
+    # 1. Just a title (uses smart defaults)
+    property1 = client.properties.create_property("Beautiful Family Home")
+    
+    # 2. Simple dictionary with common fields
+    property2 = client.properties.create_property({
+        "title": "Downtown Luxury Condo",
+        "client_type": "Buyer",
+        "status": "Active", 
+        "purchase_amount": 525000
     })
     
-    print(f"Created property with ID: {new_property['id']}")
-    print(f"Address: {new_property['address']}")
+    # 3. Seller listing
+    property3 = client.properties.create_property({
+        "title": "Suburban Family Home",
+        "client_type": "Seller",
+        "status": "Pre-MLS",
+        "purchase_amount": 675000
+    })
+    
+    print(f"Created property: {property2['id']}")
     ```
 
-=== ":material-home-city: Complete Listing"
+=== ":material-plus: Legacy Format"
 
     ```python
-    # Create a comprehensive property listing
+    # Traditional comprehensive format (still works)
     property_data = {
         "address": "789 Pine Street",
         "city": "Chicago",
@@ -211,24 +277,26 @@ def create_property(
     print(f"Created {new_property['property_type']} at {new_property['address']}")
     ```
 
-=== ":material-chart-line: Investment Property"
+=== ":material-shield-check: Validation & Errors"
 
     ```python
-    # Create an investment property
-    investment_property = client.properties.create_property({
-        "address": "321 Rental Drive",
-        "city": "Austin",
-        "state": "TX",
-        "zip_code": "73301",
-        "property_type": "Multi-Family",
-        "bedrooms": 8,
-        "bathrooms": 6,
-        "units": 4,
-        "purchase_price": 800000,
-        "monthly_rent": 4800,
-        "status": "Rental",
-        "investment_type": "Buy and Hold"
-    })
+    # The API provides clear validation errors
+    try:
+        property = client.properties.create_property({
+            "title": "Test Property",
+            "client_type": "InvalidType"  # ❌ Will fail with clear message
+        })
+    except ValidationError as e:
+        print(f"Validation error: {e}")
+        # Output: Invalid client_type: InvalidType. Must be one of: buyer, seller, dual
+    
+    # Pre-validate data before creation
+    data = {"title": "Test", "client_type": "Buyer"}
+    is_valid, errors = client.validate_property_data(data)
+    if is_valid:
+        property = client.properties.create_property(data)
+    else:
+        print(f"Validation errors: {errors}")
     ```
 
 ---

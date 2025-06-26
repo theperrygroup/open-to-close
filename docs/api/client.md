@@ -1,9 +1,13 @@
 # Main Client
 
-The `OpenToCloseAPI` class serves as the main entry point for interacting with the Open To Close API. It provides access to all API endpoints through service-specific clients using a composition pattern with lazy initialization.
+The `OpenToCloseAPI` class is the main entry point for interacting with the Open To Close API. It provides access to all service endpoints and handles authentication, configuration, and common operations.
 
-!!! abstract "OpenToCloseAPI Client"
-    The main client handles authentication, configuration, and provides access to all resource-specific API clients through properties.
+!!! abstract "Main Client Class"
+    **Class**: `OpenToCloseAPI`  
+    **Module**: `open_to_close.client`
+
+!!! success "v2.5.0 NEW: Field Discovery & Validation"
+    Added new methods for discovering available fields and validating property data before API calls.
 
 ---
 
@@ -12,17 +16,248 @@ The `OpenToCloseAPI` class serves as the main entry point for interacting with t
 ```python
 from open_to_close import OpenToCloseAPI
 
-# Initialize with environment variable (recommended)
+# Initialize with environment variable
 client = OpenToCloseAPI()
 
-# Or provide API key directly
+# Or with explicit API key
 client = OpenToCloseAPI(api_key="your_api_key_here")
 
-# Access different API endpoints
+# Access service endpoints
 properties = client.properties.list_properties()
-agents = client.agents.list_agents()
 contacts = client.contacts.list_contacts()
 ```
+
+---
+
+## 🏗️ Initialization
+
+### **OpenToCloseAPI()**
+
+```python
+def __init__(
+    self,
+    api_key: Optional[str] = None,
+    base_url: Optional[str] = None
+) -> None
+```
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `api_key` | `Optional[str]` | No | API key (defaults to `OPEN_TO_CLOSE_API_KEY` environment variable) |
+| `base_url` | `Optional[str]` | No | Base API URL (defaults to production endpoint) |
+
+=== ":material-key: Environment Variable"
+
+    ```python
+    # Set environment variable
+    export OPEN_TO_CLOSE_API_KEY="your_api_key_here"
+    
+    # Initialize client
+    client = OpenToCloseAPI()
+    ```
+
+=== ":material-lock: Explicit API Key"
+
+    ```python
+    # Pass API key directly
+    client = OpenToCloseAPI(api_key="your_api_key_here")
+    ```
+
+=== ":material-server: Custom Base URL"
+
+    ```python
+    # Use custom base URL (for testing/staging)
+    client = OpenToCloseAPI(
+        api_key="your_api_key",
+        base_url="https://staging-api.opentoclose.com/v1"
+    )
+    ```
+
+---
+
+## 🔍 Field Discovery Methods (v2.5.0)
+
+### **list_available_fields()**
+
+Get a list of all available property fields with metadata including types, requirements, and options.
+
+```python
+def list_available_fields(self) -> List[Dict[str, Any]]
+```
+
+**Returns:**
+
+| Type | Description |
+|------|-------------|
+| `List[Dict[str, Any]]` | List of field definitions with metadata |
+
+**Field Metadata Structure:**
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `key` | `str` | Field identifier for API calls |
+| `title` | `str` | Human-readable field name |
+| `type` | `str` | Field type (`text`, `choice`, `date`, etc.) |
+| `required` | `bool` | Whether field is required for creation |
+| `options` | `Dict[str, int]` | Available options for choice fields |
+
+=== ":material-list-box: Basic Usage"
+
+    ```python
+    # Get all available fields
+    fields = client.list_available_fields()
+    print(f"Found {len(fields)} available fields")
+    
+    # Display field information
+    for field in fields[:10]:
+        required = "✅ Required" if field['required'] else "⭕ Optional"
+        print(f"{field['key']}: {field['title']} ({field['type']}) - {required}")
+    ```
+
+=== ":material-filter: Filter by Type"
+
+    ```python
+    # Get only required fields
+    required_fields = [f for f in client.list_available_fields() if f['required']]
+    print(f"Required fields: {len(required_fields)}")
+    
+    # Get choice fields with options
+    choice_fields = [f for f in client.list_available_fields() if f['type'] == 'choice']
+    for field in choice_fields:
+        print(f"{field['key']}: {list(field.get('options', {}).keys())}")
+    ```
+
+=== ":material-information: Detailed Analysis"
+
+    ```python
+    # Analyze field structure
+    fields = client.list_available_fields()
+    
+    field_types = {}
+    for field in fields:
+        field_type = field['type']
+        if field_type not in field_types:
+            field_types[field_type] = 0
+        field_types[field_type] += 1
+    
+    print("Field types distribution:")
+    for field_type, count in field_types.items():
+        print(f"  {field_type}: {count} fields")
+    ```
+
+---
+
+### **validate_property_data()**
+
+Validate property data against available field definitions before making API calls.
+
+```python
+def validate_property_data(
+    self, 
+    property_data: Dict[str, Any]
+) -> Tuple[bool, List[str]]
+```
+
+**Parameters:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `property_data` | `Dict[str, Any]` | Yes | Property data to validate |
+
+**Returns:**
+
+| Type | Description |
+|------|-------------|
+| `Tuple[bool, List[str]]` | (is_valid, list_of_errors) |
+
+=== ":material-shield-check: Basic Validation"
+
+    ```python
+    # Validate property data
+    property_data = {
+        "title": "Beautiful Home",
+        "client_type": "Buyer",
+        "status": "Active"
+    }
+    
+    is_valid, errors = client.validate_property_data(property_data)
+    
+    if is_valid:
+        print("✅ Data is valid - ready to create property")
+        property = client.properties.create_property(property_data)
+    else:
+        print("❌ Validation errors:")
+        for error in errors:
+            print(f"  - {error}")
+    ```
+
+=== ":material-alert: Error Handling"
+
+    ```python
+    # Test invalid data
+    invalid_data = {
+        "title": "Test Property",
+        "client_type": "InvalidType",  # Invalid option
+        "status": "NonExistentStatus"  # Invalid option
+    }
+    
+    is_valid, errors = client.validate_property_data(invalid_data)
+    print(f"Valid: {is_valid}")
+    print("Errors:")
+    for error in errors:
+        print(f"  ❌ {error}")
+    
+    # Output:
+    # Valid: False
+    # Errors:
+    #   ❌ Invalid client_type: InvalidType. Must be one of: buyer, seller, dual
+    #   ❌ Invalid status: NonExistentStatus. Must be one of: active, under contract, closed
+    ```
+
+=== ":material-cog: Production Workflow"
+
+    ```python
+    def safe_create_property(property_data):
+        """Safely create property with validation."""
+        # Pre-validate data
+        is_valid, errors = client.validate_property_data(property_data)
+        
+        if not is_valid:
+            return {
+                "success": False,
+                "errors": errors,
+                "property_id": None
+            }
+        
+        try:
+            # Data is valid, create property
+            property = client.properties.create_property(property_data)
+            return {
+                "success": True,
+                "errors": [],
+                "property_id": property['id'],
+                "property": property
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "errors": [str(e)],
+                "property_id": None
+            }
+    
+    # Usage
+    result = safe_create_property({
+        "title": "Safe Property Creation",
+        "client_type": "Buyer"
+    })
+    
+    if result["success"]:
+        print(f"✅ Property created: {result['property_id']}")
+    else:
+        print(f"❌ Failed: {', '.join(result['errors'])}")
+    ```
 
 ---
 

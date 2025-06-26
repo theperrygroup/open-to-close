@@ -11,6 +11,8 @@ A modern, type-safe Python wrapper for the Open To Close API. Manage properties,
 
 **🎉 Latest Update**: All API endpoint issues have been fully resolved! The wrapper now features 100% working CRUD operations across all endpoints with production-ready reliability.
 
+**🚀 v2.5.0 NEW**: **Dynamic Field Mapping** - Revolutionary simplified property creation with automatic field ID translation and human-readable field names!
+
 ## ✨ Features
 
 - **🏠 Complete Property Management** - Full CRUD operations for properties, listings, and transactions
@@ -24,6 +26,9 @@ A modern, type-safe Python wrapper for the Open To Close API. Manage properties,
 - **✅ Endpoint Reliability** - All 6 core API endpoints tested and verified working (100% success rate)
 - **🔧 Smart URL Routing** - Automatic handling of different URL patterns for optimal API compatibility
 - **🎯 Simplified Property Creation** - Create properties with just a title or simple dictionary format
+- **🆕 Dynamic Field Mapping** - Automatic field ID translation with human-readable names (v2.5.0)
+- **🔍 Field Discovery** - List and validate available fields before API calls (v2.5.0)
+- **🎛️ Smart Defaults** - Automatic team member detection and sensible field defaults (v2.5.0)
 
 ## 🚀 Quick Start
 
@@ -105,6 +110,41 @@ property3 = client.properties.create_property({
 - ⚡ **Legacy support** - advanced format still works for power users
 
 👉 **See [Property Creation Guide](docs/property-creation-guide.md) for complete examples and options**
+
+## 🔍 Field Discovery & Validation (v2.5.0)
+
+Discover available fields and validate data before making API calls:
+
+```python
+# List all available property fields with metadata
+fields = client.list_available_fields()
+print(f"Found {len(fields)} available fields")
+
+# Show field details
+for field in fields[:5]:
+    required = "✅ Required" if field['required'] else "⭕ Optional"
+    print(f"{field['key']}: {field['title']} ({field['type']}) - {required}")
+
+# Validate property data before creation
+property_data = {
+    "title": "Beautiful Home",
+    "client_type": "Buyer",
+    "status": "Active"
+}
+
+is_valid, errors = client.validate_property_data(property_data)
+if is_valid:
+    property = client.properties.create_property(property_data)
+    print(f"✅ Created property {property['id']}")
+else:
+    print(f"❌ Validation errors: {errors}")
+```
+
+**Field Discovery Features:**
+- 🔍 **Dynamic Field Lookup** - Fetch current field definitions from API
+- 🏷️ **Field Metadata** - Get field types, requirements, and available options
+- ✅ **Pre-Validation** - Validate data before API calls to prevent errors
+- 🔄 **Auto-Refresh** - Field mappings update automatically when API changes
 
 ## 🏠 Complete Transaction Workflow
 

@@ -61,8 +61,20 @@ Properties are central to the Open To Close platform. Let's explore property ope
 === ":material-plus: Create Property"
 
     ```python
-    # Create a new property
+    # 🆕 NEW: Simplified property creation (v2.5.0+)
+    # Just pass a title - uses smart defaults!
+    simple_property = client.properties.create_property("Beautiful Family Home")
+    
+    # 🆕 NEW: Simple dictionary format with human-readable fields
     new_property = client.properties.create_property({
+        "title": "Downtown Luxury Condo",           # Required
+        "client_type": "Buyer",                     # "Buyer", "Seller", or "Dual"
+        "status": "Active",                         # "Active", "Under Contract", etc.
+        "purchase_amount": 525000                   # Optional dollar amount
+    })
+    
+    # 🔧 LEGACY: Advanced API format (still supported)
+    legacy_property = client.properties.create_property({
         "address": "123 Main Street",
         "city": "New York",
         "state": "NY",
@@ -72,8 +84,17 @@ Properties are central to the Open To Close platform. Let's explore property ope
     })
     
     print(f"Created property with ID: {new_property['id']}")
-    print(f"Address: {new_property['address']}")
+    print(f"Address: {new_property.get('address', 'Not specified')}")
     ```
+
+    !!! tip "v2.5.0 Simplified Creation"
+        🎉 **NEW**: Property creation is now incredibly simple! Use `title`, `client_type`, and `status` fields with automatic field ID translation. The API wrapper handles all the complex formatting behind the scenes.
+
+        **What happens automatically:**
+        - 🔍 Auto-detects team member ID from your teams
+        - 🎯 Smart defaults: Client type = "Buyer", Status = "Active"  
+        - 🔄 Converts to complex API format transparently
+        - 🛡️ Validates inputs with clear error messages
 
 === ":material-pencil: Update Property"
 

@@ -5,6 +5,27 @@ A modern, type-safe Python wrapper for the Open To Close API. Manage properties,
 !!! success "✅ Production Ready"
     Version 2.2.8 with comprehensive test coverage and **100% verified API endpoint support**. All endpoint issues have been resolved and tested.
 
+!!! success "🎉 v2.5.0 Update: Simplified Property Creation"
+    **Major new feature**: Property creation is now incredibly simple! Use human-readable field names with automatic field ID translation.
+
+    ```python
+    # Before (complex)
+    property = client.properties.create_property({
+        "team_member_id": 26392,
+        "time_zone_id": 1,
+        "fields": [{"id": 926565, "value": "My Property"}]
+    })
+    
+    # After (simple) ✨
+    property = client.properties.create_property({
+        "title": "My Property",
+        "client_type": "Buyer", 
+        "status": "Active"
+    })
+    ```
+
+    [Learn more about simplified property creation →](property-creation-guide.md){ .md-button .md-button--primary }
+
 ---
 
 ## 🚀 Quick Start
