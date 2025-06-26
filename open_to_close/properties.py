@@ -272,12 +272,14 @@ class PropertiesAPI(BaseClient):
         self,
         property_data: Union[str, Dict[str, Any]],
         team_member_id: Optional[int] = None,
+        preserve_text_values: bool = False,
     ) -> Dict[str, Any]:
         """Convert simple property data format to API format.
 
         Args:
             property_data: Input data (string or dict)
             team_member_id: Optional team member ID
+            preserve_text_values: If True, keeps choice field text values instead of converting to IDs
 
         Returns:
             API-formatted property data
@@ -295,6 +297,7 @@ class PropertiesAPI(BaseClient):
                 client_type="Buyer",  # Default for string input
                 status="Listing- Active",  # Default for string input
                 team_member_id=team_member_id,
+                preserve_text_values=preserve_text_values,
             )
 
         # Handle dictionary input
@@ -311,16 +314,22 @@ class PropertiesAPI(BaseClient):
             return property_data.copy()
 
         # Convert simple format to API format
-        return self._convert_simple_to_api_format(property_data, team_member_id)
+        return self._convert_simple_to_api_format(
+            property_data, team_member_id, preserve_text_values
+        )
 
     def _convert_simple_to_api_format(
-        self, simple_data: Dict[str, Any], team_member_id: Optional[int] = None
+        self,
+        simple_data: Dict[str, Any],
+        team_member_id: Optional[int] = None,
+        preserve_text_values: bool = False,
     ) -> Dict[str, Any]:
         """Convert simple dictionary format to API format.
 
         Args:
             simple_data: Simple property data dictionary
             team_member_id: Optional team member ID
+            preserve_text_values: If True, keeps choice field text values instead of converting to IDs
 
         Returns:
             API-formatted dictionary
@@ -396,7 +405,7 @@ class PropertiesAPI(BaseClient):
 
             # Handle choice fields - convert human-readable values to option IDs
             if field_type == "choice" and "options" in field_mapping:
-                if isinstance(value, str):
+                if isinstance(value, str) and not preserve_text_values:
                     # Look up option ID (case-insensitive)
                     options = field_mapping["options"]
 
@@ -480,6 +489,7 @@ class PropertiesAPI(BaseClient):
         status: Optional[str] = None,
         purchase_amount: Optional[Union[int, float]] = None,
         team_member_id: Optional[int] = None,
+        preserve_text_values: bool = False,
     ) -> Dict[str, Any]:
         """Build the API format dictionary.
 
@@ -489,6 +499,7 @@ class PropertiesAPI(BaseClient):
             status: Property status
             purchase_amount: Purchase amount
             team_member_id: Team member ID
+            preserve_text_values: If True, keeps choice field text values instead of converting to IDs
 
         Returns:
             API-formatted dictionary
@@ -503,7 +514,9 @@ class PropertiesAPI(BaseClient):
         if purchase_amount is not None:
             simple_data["purchase_amount"] = purchase_amount
 
-        return self._convert_simple_to_api_format(simple_data, team_member_id)
+        return self._convert_simple_to_api_format(
+            simple_data, team_member_id, preserve_text_values
+        )
 
     def list_properties(
         self, params: Optional[Dict[str, Any]] = None
@@ -558,6 +571,7 @@ class PropertiesAPI(BaseClient):
         self,
         property_data: Union[str, Dict[str, Any]],
         team_member_id: Optional[int] = None,
+        preserve_text_values: bool = False,
     ) -> Dict[str, Any]:
         """Create a new property with simple or advanced options.
 
@@ -609,6 +623,7 @@ class PropertiesAPI(BaseClient):
         Args:
             property_data: Property information as string (title only) or dictionary
             team_member_id: Optional team member ID (auto-detected if not provided)
+            preserve_text_values: If True, keeps choice field text values instead of converting to IDs
 
         Returns:
             A dictionary representing the newly created property with at least:
@@ -646,11 +661,20 @@ class PropertiesAPI(BaseClient):
                 "state": "NY",
                 "purchase_amount": 425000
             })
+
+            # Preserve human-readable text values
+            property4 = client.properties.create_property({
+                "title": "Downtown Condo",
+                "client_type": "Buyer",
+                "status": "Under Contract"
+            }, preserve_text_values=True)
             ```
         """
         try:
             # Convert input to API format
-            api_data = self._prepare_property_data(property_data, team_member_id)
+            api_data = self._prepare_property_data(
+                property_data, team_member_id, preserve_text_values
+            )
 
             # Validate the prepared data
             self._validate_property_data(api_data, "create")
