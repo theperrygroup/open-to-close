@@ -61,6 +61,13 @@ Properties are central to the Open To Close platform. Let's explore property ope
 === ":material-plus: Create Property"
 
     ```python
+    # 🆕 NEWEST: UI-friendly text values (v2.6.0+)
+    ui_property = client.properties.create_property({
+        "title": "Modern Downtown Condo",
+        "client_type": "Buyer",                     # Stays as "Buyer" in UI
+        "status": "Under Contract"                  # Stays as "Under Contract" in UI
+    }, preserve_text_values=True)  # 🆕 NEW parameter for UI display
+    
     # 🆕 NEW: Simplified property creation (v2.5.0+)
     # Just pass a title - uses smart defaults!
     simple_property = client.properties.create_property("Beautiful Family Home")
@@ -86,6 +93,17 @@ Properties are central to the Open To Close platform. Let's explore property ope
     print(f"Created property with ID: {new_property['id']}")
     print(f"Address: {new_property.get('address', 'Not specified')}")
     ```
+
+    !!! success "v2.6.0 UI-Friendly Text Values"
+        🆕 **LATEST**: Use `preserve_text_values=True` to keep human-readable text in the Open to Close UI! Solves the issue of numeric IDs being displayed instead of readable text.
+
+        **Key Benefits:**
+        - 📱 UI shows "Buyer" instead of "797212"
+        - 🎯 Dropdowns preselect correctly with proper title case
+        - 👀 Better user experience and data clarity
+        - ✅ Fully backwards compatible
+
+        **Important:** Use proper title case (`"Buyer"`, `"Under Contract"`) for UI recognition.
 
     !!! tip "v2.5.0 Simplified Creation"
         🎉 **NEW**: Property creation is now incredibly simple! Use `title`, `client_type`, and `status` fields with automatic field ID translation. The API wrapper handles all the complex formatting behind the scenes.

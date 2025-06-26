@@ -5,10 +5,17 @@ The Properties API provides complete lifecycle management for real estate proper
 !!! abstract "PropertiesAPI Client"
     Access via `client.properties` - provides full CRUD operations for property management.
 
-!!! success "v2.5.0 NEW: Simplified Property Creation"
-    🎉 **Major Update**: Property creation is now incredibly simple! Use human-readable field names with automatic field ID translation.
+!!! success "v2.6.0 NEW: UI-Friendly Text Values"
+    🎉 **Latest Update**: Preserve human-readable text values for proper UI display! The new `preserve_text_values` parameter prevents conversion to numeric IDs.
 
     ```python
+    # ✨ NEW: Preserve text for UI recognition (v2.6.0)
+    property = client.properties.create_property({
+        "title": "Downtown Condo",
+        "client_type": "Buyer",        # Preserved as "Buyer" in UI
+        "status": "Under Contract"     # Preserved as "Under Contract" in UI
+    }, preserve_text_values=True)
+    
     # ✨ Simple title only
     property = client.properties.create_property("Beautiful Family Home")
     
@@ -186,7 +193,8 @@ Create a new property with simple human-readable fields or advanced API format.
 def create_property(
     self, 
     property_data: Union[str, Dict[str, Any]],
-    team_member_id: Optional[int] = None
+    team_member_id: Optional[int] = None,
+    preserve_text_values: bool = False
 ) -> Dict[str, Any]
 ```
 
@@ -196,6 +204,7 @@ def create_property(
 |------|------|----------|-------------|
 | `property_data` | `Union[str, Dict[str, Any]]` | Yes | Property title (string) or property data (dictionary) |
 | `team_member_id` | `Optional[int]` | No | Override auto-detected team member ID |
+| `preserve_text_values` | `bool` | No | If True, preserves choice field text values instead of converting to IDs (v2.6.0+) |
 
 **Returns:**
 
@@ -227,7 +236,43 @@ def create_property(
 | `listing_price` | `number` | No | Listing price | `450000` |
 | `status` | `string` | No | Property status | `"Active"` |
 
-=== ":sparkles: NEW: Simple Format"
+=== ":star: NEW: UI-Friendly Text Values (v2.6.0)"
+
+    ```python
+    # ✨ NEW: Preserve text for proper UI display and recognition
+    property1 = client.properties.create_property({
+        "title": "Beautiful Family Home",
+        "client_type": "Buyer",           # ← Stays as "Buyer" in UI
+        "status": "Under Contract"        # ← Stays as "Under Contract" in UI
+    }, preserve_text_values=True)
+    
+    # ✅ IMPORTANT: Use proper title case for UI recognition
+    property2 = client.properties.create_property({
+        "title": "Downtown Luxury Condo",
+        "client_type": "Seller",          # ← Title case required
+        "status": "Listing- Active",      # ← Title case required
+        "purchase_amount": 525000
+    }, preserve_text_values=True)
+    
+    # Compare: Default behavior vs. preserve_text_values
+    print("=== Comparison ===")
+    
+    # Default: Converts to IDs (backwards compatible)
+    default_property = client.properties.create_property({
+        "title": "Test Property",
+        "client_type": "buyer",           # → Becomes 797212
+        "status": "under contract"        # → Becomes 797209
+    })
+    
+    # Preserve: Keeps text (UI-friendly)
+    preserve_property = client.properties.create_property({
+        "title": "Test Property",
+        "client_type": "Buyer",           # → Stays "Buyer"
+        "status": "Under Contract"        # → Stays "Under Contract"
+    }, preserve_text_values=True)
+    ```
+
+=== ":sparkles: Simple Format"
 
     ```python
     # 1. Just a title (uses smart defaults)
@@ -297,6 +342,44 @@ def create_property(
         property = client.properties.create_property(data)
     else:
         print(f"Validation errors: {errors}")
+    ```
+
+!!! info "Title Case Requirements for UI Recognition (v2.6.0+)"
+    
+    **⚠️ Important**: When using `preserve_text_values=True`, proper title case is required for Open to Close UI recognition.
+
+    **✅ Correct Title Case:**
+    
+    | Field Type | Correct Values | UI Result |
+    |------------|----------------|-----------|
+    | **Client Types** | `"Buyer"`, `"Seller"`, `"Dual"` | Dropdowns preselect correctly |
+    | **Status** | `"Under Contract"`, `"Listing- Active"`, `"Closed"` | Status displays and selects properly |
+    | **Property Types** | `"Single Family Residential"`, `"Condo"`, `"Townhouse"` | Type recognition works |
+
+    **❌ Incorrect Case:**
+    
+    | Field Type | Incorrect Values | UI Result |
+    |------------|------------------|-----------|
+    | **Client Types** | `"buyer"`, `"BUYER"`, `"Buyer "` | May not preselect in dropdowns |
+    | **Status** | `"under contract"`, `"UNDER CONTRACT"` | Status may not be recognized |
+
+    **💡 Why This Matters:**
+    - Open to Close UI matches exact text values for dropdown preselection
+    - Incorrect case prevents proper UI recognition
+    - Users may see wrong selections or have to manually fix dropdowns
+
+    **🔍 Quick Test:**
+    ```python
+    # Test UI recognition
+    property = client.properties.create_property({
+        "title": "Test Property",
+        "client_type": "Buyer",        # ← Exact title case
+        "status": "Under Contract"     # ← Exact title case
+    }, preserve_text_values=True)
+    
+    # Then open property in Open to Close UI:
+    # ✅ Client type dropdown should show "Buyer" selected
+    # ✅ Status dropdown should show "Under Contract" selected
     ```
 
 ---
